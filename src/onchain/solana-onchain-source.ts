@@ -8,6 +8,12 @@ import {
   HolderAggregationEngine,
   HolderAccountBalance,
 } from "./holder-aggregation";
+import {
+  WalletClassificationEngine,
+} from "./wallet-classification";
+import {
+  WalletAnalysisEngine,
+} from "./wallet-analysis";
 
 interface SolanaRpcResponse<T> {
   result?: T;
@@ -58,6 +64,12 @@ export class SolanaOnChainSource
   private readonly holderAnalysisEngine =
     new HolderAnalysisEngine();
 
+  private readonly walletClassificationEngine =
+    new WalletClassificationEngine();
+
+  private readonly walletAnalysisEngine =
+    new WalletAnalysisEngine();
+
   constructor(
     private readonly rpcUrl: string,
   ) {}
@@ -85,14 +97,31 @@ export class SolanaOnChainSource
         accountBalances,
       );
 
-    const holders =
+    const walletAnalyses =
       aggregatedHolders.map(
-        (holder) => ({
+        (holder) => {
+          const classification =
+            this.walletClassificationEngine
+              .classifyUnknown(
+                holder.walletAddress,
+                "No wallet identity evidence has been collected yet.",
+              );
+
+          return this.walletAnalysisEngine.analyze(
+            holder,
+            classification,
+          );
+        },
+      );
+
+    const holders: HolderBalance[] =
+      walletAnalyses.map(
+        (wallet) => ({
           walletAddress:
-            holder.walletAddress,
+            wallet.walletAddress,
 
           tokenAmount:
-            holder.tokenAmount,
+            wallet.tokenAmount,
         }),
       );
 
@@ -107,6 +136,14 @@ export class SolanaOnChainSource
     const unknowns: string[] = [
       ...holderAnalysis.unknowns,
     ];
+
+    for (
+      const wallet of walletAnalyses
+    ) {
+      unknowns.push(
+        ...wallet.unknowns,
+      );
+    }
 
     if (
       supply === undefined
