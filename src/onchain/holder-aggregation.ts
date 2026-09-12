@@ -1,4 +1,5 @@
 export interface HolderAccountBalance {
+  tokenAccountAddress: string;
   walletAddress: string;
   tokenAmount: number;
 }
@@ -7,6 +8,7 @@ export interface AggregatedHolderBalance {
   walletAddress: string;
   tokenAmount: number;
   tokenAccountCount: number;
+  tokenAccountAddresses: string[];
 }
 
 export class HolderAggregationEngine {
@@ -20,21 +22,31 @@ export class HolderAggregationEngine {
 
     for (const account of accounts) {
       if (
+        !account.tokenAccountAddress ||
         !account.walletAddress ||
-        !Number.isFinite(account.tokenAmount) ||
+        !Number.isFinite(
+          account.tokenAmount,
+        ) ||
         account.tokenAmount <= 0
       ) {
         continue;
       }
 
       const existing =
-        balances.get(account.walletAddress);
+        balances.get(
+          account.walletAddress,
+        );
 
       if (existing) {
         existing.tokenAmount +=
           account.tokenAmount;
 
         existing.tokenAccountCount += 1;
+
+        existing.tokenAccountAddresses.push(
+          account.tokenAccountAddress,
+        );
+
         continue;
       }
 
@@ -48,6 +60,10 @@ export class HolderAggregationEngine {
             account.tokenAmount,
 
           tokenAccountCount: 1,
+
+          tokenAccountAddresses: [
+            account.tokenAccountAddress,
+          ],
         },
       );
     }
