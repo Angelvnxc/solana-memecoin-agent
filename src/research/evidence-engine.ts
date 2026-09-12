@@ -4,11 +4,15 @@ import {
   ConfidenceLevel,
 } from "./research-record";
 
+import {
+  SourceAssessment,
+} from "./sources/source-reliability";
+
 export interface EvidenceInput {
   type: EvidenceType;
   category: string;
   statement: string;
-  source: string;
+  source: SourceAssessment;
   confidence: ConfidenceLevel;
 }
 
