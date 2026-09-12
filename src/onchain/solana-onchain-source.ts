@@ -1,5 +1,9 @@
 import { OnChainDataSource } from "./onchain-source";
 import { OnChainAnalysis } from "./onchain-analysis";
+import {
+  HolderAnalysisEngine,
+  HolderBalance,
+} from "./holder-analysis";
 
 interface SolanaRpcResponse<T> {
   result?: T;
@@ -24,6 +28,7 @@ interface TokenAccount {
       parsed?: {
         info?: {
           owner?: string;
+
           tokenAmount?: {
             amount?: string;
           };
@@ -43,6 +48,9 @@ export class SolanaOnChainSource
   readonly name =
     "Solana RPC On-Chain Source";
 
+  private readonly holderAnalysisEngine =
+    new HolderAnalysisEngine();
+
   constructor(
     private readonly rpcUrl: string,
   ) {}
@@ -60,13 +68,21 @@ export class SolanaOnChainSource
         tokenAddress,
       );
 
-    const uniqueOwners =
-      this.extractUniqueOwners(
+    const holders =
+      this.extractHolderBalances(
         tokenAccounts,
       );
 
+    const holderAnalysis =
+      this.holderAnalysisEngine.analyze(
+        holders,
+        supply,
+      );
+
     const risks: string[] = [];
-    const unknowns: string[] = [];
+    const unknowns: string[] = [
+      ...holderAnalysis.unknowns,
+    ];
 
     if (
       supply === undefined
@@ -84,12 +100,34 @@ export class SolanaOnChainSource
       );
     }
 
+    unknowns.push(
+      "Historical transaction activity is not implemented yet.",
+    );
+
+    unknowns.push(
+      "Buyer and seller classification is not implemented yet.",
+    );
+
+    unknowns.push(
+      "Developer wallet identification is not implemented yet.",
+    );
+
+    unknowns.push(
+      "Liquidity provider identification is not implemented yet.",
+    );
+
     return {
       tokenAddress,
 
       holders: {
         total:
-          uniqueOwners.size,
+          holderAnalysis.totalHolders,
+
+        topHolderConcentration:
+          holderAnalysis.topHolderPercentage,
+
+        top10Concentration:
+          holderAnalysis.top10Percentage,
       },
 
       developer: {},
@@ -111,27 +149,32 @@ export class SolanaOnChainSource
 
       risks,
 
-      unknowns: [
-        ...unknowns,
-
-        "Historical transaction activity is not implemented yet.",
-        "Buyer and seller classification is not implemented yet.",
-        "Developer wallet identification is not implemented yet.",
-        "Liquidity provider identification is not implemented yet.",
-      ],
+      unknowns,
     };
   }
 
   private async getTokenSupply(
     tokenAddress: string,
-  ): Promise<string | undefined> {
+  ): Promise<number | undefined> {
     const response =
       await this.rpcRequest<TokenSupplyResult>(
         "getTokenSupply",
         [tokenAddress],
       );
 
-    return response?.value?.amount;
+    const amount =
+      response?.value?.amount;
+
+    if (!amount) {
+      return undefined;
+    }
+
+    const parsed =
+      Number(amount);
+
+    return Number.isFinite(parsed)
+      ? parsed
+      : undefined;
   }
 
   private async getTokenAccounts(
@@ -151,46 +194,67 @@ export class SolanaOnChainSource
     return response?.value ?? [];
   }
 
-  private extractUniqueOwners(
+  private extractHolderBalances(
     accounts: TokenAccount[],
-  ): Set<string> {
-    const owners = new Set<string>();
+  ): HolderBalance[] {
+    const holders: HolderBalance[] = [];
 
     for (const account of accounts) {
-      const owner =
-        account.account?.data?.parsed?.info
-          ?.owner;
+      const info =
+        account.account?.data?.parsed?.info;
 
-      if (owner) {
-        owners.add(owner);
+      const owner =
+        info?.owner;
+
+      const amount =
+        info?.tokenAmount?.amount;
+
+      if (!owner || !amount) {
+        continue;
       }
+
+      const tokenAmount =
+        Number(amount);
+
+      if (
+        !Number.isFinite(tokenAmount) ||
+        tokenAmount <= 0
+      ) {
+        continue;
+      }
+
+      holders.push({
+        walletAddress: owner,
+        tokenAmount,
+      });
     }
 
-    return owners;
+    return holders;
   }
 
   private async rpcRequest<T>(
     method: string,
     params: unknown[],
   ): Promise<T | undefined> {
-    const response = await fetch(
-      this.rpcUrl,
-      {
-        method: "POST",
+    const response =
+      await fetch(
+        this.rpcUrl,
+        {
+          method: "POST",
 
-        headers: {
-          "Content-Type":
-            "application/json",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+
+          body: JSON.stringify({
+            jsonrpc: "2.0",
+            id: 1,
+            method,
+            params,
+          }),
         },
-
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method,
-          params,
-        }),
-      },
-    );
+      );
 
     if (!response.ok) {
       throw new Error(
