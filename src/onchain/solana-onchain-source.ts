@@ -278,6 +278,36 @@ export class SolanaOnChainSource
       );
     }
 
+    if (
+      identity.type ===
+      "SYSTEM_ACCOUNT"
+    ) {
+      signals.push(
+        this.walletSignalEngine.createSignal(
+          walletAddress,
+          "SYSTEM_OWNERSHIP",
+          "The Solana account is owned by the Solana System Program.",
+          identity.confidence,
+          "Solana RPC getAccountInfo",
+        ),
+      );
+    }
+
+    if (
+      identity.type ===
+      "TOKEN_ACCOUNT"
+    ) {
+      signals.push(
+        this.walletSignalEngine.createSignal(
+          walletAddress,
+          "MULTIPLE_TOKEN_ACCOUNTS",
+          "The address is owned by a Solana token program and should be interpreted as token-account infrastructure rather than automatically as an economically controlling wallet.",
+          identity.confidence,
+          "Solana RPC getAccountInfo",
+        ),
+      );
+    }
+
     return signals;
   }
 
