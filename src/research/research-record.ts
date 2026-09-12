@@ -37,6 +37,17 @@ export interface ResearchRecord {
     liquidity?: number;
   };
 
+  marketActivity?: {
+    volume24h?: number;
+    transactionCount24h?: number;
+    buyCount24h?: number;
+    sellCount24h?: number;
+    uniqueBuyers24h?: number;
+    uniqueSellers24h?: number;
+    buySellRatio?: number;
+    observedAt?: string;
+  };
+
   holders: {
     total?: number;
     concentration?: number;
