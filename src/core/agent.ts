@@ -1,14 +1,20 @@
+import { agentConfig } from "../config/agent.config";
+import {
+  stagePermissions,
+  type LearningStage,
+} from "../learning/stage-manager";
+
 export class Agent {
   readonly name = "Solana Memecoin Agent";
-  readonly stage = "STAGE_0_BIRTH";
+  readonly stage: LearningStage = agentConfig.stage;
 
   getStatus() {
     return {
       name: this.name,
       stage: this.stage,
-      tradingEnabled: false,
-      paperTradingEnabled: false,
-      realTradingEnabled: false,
+      permissions: stagePermissions[this.stage],
+      trading: agentConfig.trading,
+      wallet: agentConfig.wallet,
     };
   }
 }
