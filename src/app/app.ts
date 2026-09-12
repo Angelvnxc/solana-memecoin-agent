@@ -4,6 +4,7 @@ import { ResearchOrchestrator } from "../research/orchestration/research-orchest
 import { ResearchQualityGate } from "../research/research-quality";
 import { EvidenceEngine } from "../research/evidence-engine";
 import { OpportunityProfileEngine } from "../research/opportunity-profile";
+import { MarketContextEngine } from "../research/market-context";
 import { ThesisEngine } from "../thesis/thesis-engine";
 import { DecisionEngine } from "../decision/decision-engine";
 import { PositionManager } from "../position/position-manager";
@@ -30,6 +31,9 @@ export function createAgentSystem() {
 
   const opportunityProfileEngine =
     new OpportunityProfileEngine();
+
+  const marketContextEngine =
+    new MarketContextEngine();
 
   const thesisEngine =
     new ThesisEngine();
@@ -62,6 +66,7 @@ export function createAgentSystem() {
     researchQualityGate,
     evidenceEngine,
     opportunityProfileEngine,
+    marketContextEngine,
     thesisEngine,
     decisionEngine,
     positionManager,
