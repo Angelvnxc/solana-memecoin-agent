@@ -3,6 +3,7 @@ import { ResearchEngine } from "../research/research-engine";
 import { ResearchOrchestrator } from "../research/orchestration/research-orchestrator";
 import { ResearchQualityGate } from "../research/research-quality";
 import { EvidenceEngine } from "../research/evidence-engine";
+import { OpportunityProfileEngine } from "../research/opportunity-profile";
 import { ThesisEngine } from "../thesis/thesis-engine";
 import { DecisionEngine } from "../decision/decision-engine";
 import { PositionManager } from "../position/position-manager";
@@ -26,6 +27,9 @@ export function createAgentSystem() {
 
   const evidenceEngine =
     new EvidenceEngine();
+
+  const opportunityProfileEngine =
+    new OpportunityProfileEngine();
 
   const thesisEngine =
     new ThesisEngine();
@@ -57,6 +61,7 @@ export function createAgentSystem() {
     researchOrchestrator,
     researchQualityGate,
     evidenceEngine,
+    opportunityProfileEngine,
     thesisEngine,
     decisionEngine,
     positionManager,
