@@ -1,5 +1,6 @@
 export type WalletSignalType =
   | "PROGRAM_OWNERSHIP"
+  | "SYSTEM_OWNERSHIP"
   | "BURN_ADDRESS"
   | "KNOWN_EXCHANGE"
   | "LIQUIDITY_ASSOCIATION"
