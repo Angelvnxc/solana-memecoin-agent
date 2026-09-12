@@ -1,15 +1,20 @@
-import { MarketDataSource } from "../market/market-source";
 import { MarketData } from "../market/market-data";
+import { MarketDataSource } from "../market/market-source";
+import {
+  OpportunityProfile,
+  OpportunityProfileEngine,
+} from "./opportunity-profile";
 
 export interface OpportunityCandidate {
   tokenAddress: string;
   marketData: MarketData;
-  reasons: string[];
+  profile: OpportunityProfile;
 }
 
 export class OpportunityDiscovery {
   constructor(
     private readonly marketSource: MarketDataSource,
+    private readonly profileEngine: OpportunityProfileEngine,
   ) {}
 
   async evaluateToken(
@@ -18,28 +23,77 @@ export class OpportunityDiscovery {
     const marketData =
       await this.marketSource.getTokenData(tokenAddress);
 
-    const reasons: string[] = [];
+    const profile =
+      this.profileEngine.createProfile(
+        tokenAddress,
+        marketData,
+      );
+
+    let updatedProfile = profile;
 
     if (marketData.liquidity !== undefined) {
-      reasons.push("Market liquidity data available");
+      updatedProfile =
+        this.profileEngine.addDiscoverySignal(
+          updatedProfile,
+          "Market liquidity data is available.",
+        );
+    } else {
+      updatedProfile =
+        this.profileEngine.addUnknown(
+          updatedProfile,
+          "Market liquidity is unknown.",
+        );
     }
 
     if (marketData.volume24h !== undefined) {
-      reasons.push("24-hour volume data available");
+      updatedProfile =
+        this.profileEngine.addDiscoverySignal(
+          updatedProfile,
+          "24-hour volume data is available.",
+        );
+    } else {
+      updatedProfile =
+        this.profileEngine.addUnknown(
+          updatedProfile,
+          "24-hour volume is unknown.",
+        );
     }
 
     if (marketData.priceChange24h !== undefined) {
-      reasons.push("24-hour price movement available");
+      updatedProfile =
+        this.profileEngine.addDiscoverySignal(
+          updatedProfile,
+          "24-hour price movement is available.",
+        );
+    } else {
+      updatedProfile =
+        this.profileEngine.addUnknown(
+          updatedProfile,
+          "24-hour price movement is unknown.",
+        );
     }
 
-    if (reasons.length === 0) {
-      return null;
+    if (
+      marketData.liquidity !== undefined &&
+      marketData.volume24h !== undefined
+    ) {
+      updatedProfile =
+        this.profileEngine.setResearchPriority(
+          updatedProfile,
+          "MEDIUM",
+        );
+    } else {
+      updatedProfile =
+        this.profileEngine.setResearchPriority(
+          updatedProfile,
+          "LOW",
+        );
     }
 
     return {
       tokenAddress,
       marketData,
-      reasons,
+      profile: updatedProfile,
     };
   }
 }
