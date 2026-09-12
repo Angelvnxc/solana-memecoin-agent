@@ -14,6 +14,9 @@ import {
 import {
   WalletAnalysisEngine,
 } from "./wallet-analysis";
+import {
+  HolderDistributionAnalysisEngine,
+} from "./holder-distribution-analysis";
 
 interface SolanaRpcResponse<T> {
   result?: T;
@@ -69,6 +72,9 @@ export class SolanaOnChainSource
 
   private readonly walletAnalysisEngine =
     new WalletAnalysisEngine();
+
+  private readonly holderDistributionAnalysisEngine =
+    new HolderDistributionAnalysisEngine();
 
   constructor(
     private readonly rpcUrl: string,
@@ -131,10 +137,19 @@ export class SolanaOnChainSource
         supply,
       );
 
-    const risks: string[] = [];
+    const distribution =
+      this.holderDistributionAnalysisEngine.analyze(
+        walletAnalyses,
+        supply,
+      );
+
+    const risks: string[] = [
+      ...distribution.risks,
+    ];
 
     const unknowns: string[] = [
       ...holderAnalysis.unknowns,
+      ...distribution.unknowns,
     ];
 
     for (
@@ -190,6 +205,8 @@ export class SolanaOnChainSource
         top10Concentration:
           holderAnalysis.top10Percentage,
       },
+
+      distribution,
 
       developer: {},
 
