@@ -1,0 +1,14 @@
+{
+  "name": "solana-memecoin-agent",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Autonomous Solana memecoin research and trading agent",
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit",
+    "check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.2"
+  }
+}
