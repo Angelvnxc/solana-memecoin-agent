@@ -1,3 +1,7 @@
+import {
+  SourceAssessment,
+} from "./sources/source-reliability";
+
 export type EvidenceType =
   | "SUPPORTING"
   | "CONTRADICTING"
@@ -10,14 +14,19 @@ export type ConfidenceLevel =
 
 export interface ResearchEvidence {
   type: EvidenceType;
+
   category: string;
+
   statement: string;
-  source: string;
+
   confidence: ConfidenceLevel;
+
+  source: SourceAssessment;
 }
 
 export interface ResearchRecord {
   tokenAddress: string;
+
   symbol?: string;
   name?: string;
 
@@ -48,6 +57,7 @@ export interface ResearchRecord {
   evidence: ResearchEvidence[];
 
   risks: string[];
+
   unknowns: string[];
 
   confidence: ConfidenceLevel;
