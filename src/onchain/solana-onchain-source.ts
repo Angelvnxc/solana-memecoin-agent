@@ -85,14 +85,16 @@ export class SolanaOnChainSource
   private readonly walletSignalEngine =
     new WalletSignalEngine();
 
-  private readonly addressIdentitySource =
-    new SolanaAddressIdentitySource(
-      this.rpcUrl,
-    );
+  private readonly addressIdentitySource: SolanaAddressIdentitySource;
 
   constructor(
     private readonly rpcUrl: string,
-  ) {}
+  ) {
+    this.addressIdentitySource =
+      new SolanaAddressIdentitySource(
+        this.rpcUrl,
+      );
+  }
 
   async analyzeToken(
     tokenAddress: string,
@@ -127,11 +129,10 @@ export class SolanaOnChainSource
               );
 
             const classification =
-              this.walletClassificationEngine
-                .classify(
-                  holder.walletAddress,
-                  signals,
-                );
+              this.walletClassificationEngine.classify(
+                holder.walletAddress,
+                signals,
+              );
 
             return this.walletAnalysisEngine.analyze(
               holder,
@@ -258,10 +259,9 @@ export class SolanaOnChainSource
     const signals = [];
 
     const identity =
-      await this.addressIdentitySource
-        .getAddressIdentity(
-          walletAddress,
-        );
+      await this.addressIdentitySource.getAddressIdentity(
+        walletAddress,
+      );
 
     if (
       identity.type ===
