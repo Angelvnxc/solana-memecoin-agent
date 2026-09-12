@@ -47,7 +47,9 @@ export class WalletClassificationEngine {
 
     for (const entityType of priorityOrder) {
       const matchingSignals =
-        groupedSignals.get(entityType);
+        groupedSignals.get(
+          entityType,
+        );
 
       if (
         matchingSignals &&
@@ -69,17 +71,10 @@ export class WalletClassificationEngine {
       }
     }
 
-    return {
+    return this.classifyUnknownWithEvidence(
       walletAddress,
-      entityType: "UNKNOWN",
-      confidence: "LOW",
-      evidence: signals,
-      unknowns: [
-        "Available signals do not provide enough evidence for a specific wallet classification.",
-      ],
-      classifiedAt:
-        new Date().toISOString(),
-    };
+      signals,
+    );
   }
 
   classifyUnknown(
@@ -92,6 +87,59 @@ export class WalletClassificationEngine {
       confidence: "LOW",
       evidence: [],
       unknowns: [reason],
+      classifiedAt:
+        new Date().toISOString(),
+    };
+  }
+
+  private classifyUnknownWithEvidence(
+    walletAddress: string,
+    signals: WalletSignal[],
+  ): WalletClassification {
+    const unknowns: string[] = [];
+
+    const hasSystemOwnership =
+      signals.some(
+        (signal) =>
+          signal.type ===
+          "SYSTEM_OWNERSHIP",
+      );
+
+    const hasMultipleTokenAccounts =
+      signals.some(
+        (signal) =>
+          signal.type ===
+          "MULTIPLE_TOKEN_ACCOUNTS",
+      );
+
+    if (hasSystemOwnership) {
+      unknowns.push(
+        "The address is owned by the Solana System Program, but this alone does not establish the economic identity of the controller.",
+      );
+    }
+
+    if (
+      hasMultipleTokenAccounts
+    ) {
+      unknowns.push(
+        "The address is associated with token-account evidence, but this alone does not establish the economic identity of the controller.",
+      );
+    }
+
+    if (
+      unknowns.length === 0
+    ) {
+      unknowns.push(
+        "Available signals do not provide enough evidence for a specific wallet classification.",
+      );
+    }
+
+    return {
+      walletAddress,
+      entityType: "UNKNOWN",
+      confidence: "LOW",
+      evidence: signals,
+      unknowns,
       classifiedAt:
         new Date().toISOString(),
     };
