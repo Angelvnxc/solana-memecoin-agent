@@ -17,6 +17,12 @@ import {
 import {
   HolderDistributionAnalysisEngine,
 } from "./holder-distribution-analysis";
+import {
+  WalletSignalEngine,
+} from "./wallet-signals";
+import {
+  SolanaAddressIdentitySource,
+} from "./solana-address-identity-source";
 
 interface SolanaRpcResponse<T> {
   result?: T;
@@ -76,6 +82,14 @@ export class SolanaOnChainSource
   private readonly holderDistributionAnalysisEngine =
     new HolderDistributionAnalysisEngine();
 
+  private readonly walletSignalEngine =
+    new WalletSignalEngine();
+
+  private readonly addressIdentitySource =
+    new SolanaAddressIdentitySource(
+      this.rpcUrl,
+    );
+
   constructor(
     private readonly rpcUrl: string,
   ) {}
@@ -104,20 +118,27 @@ export class SolanaOnChainSource
       );
 
     const walletAnalyses =
-      aggregatedHolders.map(
-        (holder) => {
-          const classification =
-            this.walletClassificationEngine
-              .classifyUnknown(
+      await Promise.all(
+        aggregatedHolders.map(
+          async (holder) => {
+            const signals =
+              await this.collectWalletSignals(
                 holder.walletAddress,
-                "No wallet identity evidence has been collected yet.",
               );
 
-          return this.walletAnalysisEngine.analyze(
-            holder,
-            classification,
-          );
-        },
+            const classification =
+              this.walletClassificationEngine
+                .classify(
+                  holder.walletAddress,
+                  signals,
+                );
+
+            return this.walletAnalysisEngine.analyze(
+              holder,
+              classification,
+            );
+          },
+        ),
       );
 
     const holders: HolderBalance[] =
@@ -229,6 +250,35 @@ export class SolanaOnChainSource
 
       unknowns,
     };
+  }
+
+  private async collectWalletSignals(
+    walletAddress: string,
+  ) {
+    const signals = [];
+
+    const identity =
+      await this.addressIdentitySource
+        .getAddressIdentity(
+          walletAddress,
+        );
+
+    if (
+      identity.type ===
+      "PROGRAM_ACCOUNT"
+    ) {
+      signals.push(
+        this.walletSignalEngine.createSignal(
+          walletAddress,
+          "PROGRAM_OWNERSHIP",
+          "The Solana account is executable and is therefore associated with program code.",
+          identity.confidence,
+          "Solana RPC getAccountInfo",
+        ),
+      );
+    }
+
+    return signals;
   }
 
   private async getTokenSupply(
