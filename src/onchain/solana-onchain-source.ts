@@ -4,6 +4,10 @@ import {
   HolderAnalysisEngine,
   HolderBalance,
 } from "./holder-analysis";
+import {
+  HolderAggregationEngine,
+  HolderAccountBalance,
+} from "./holder-aggregation";
 
 interface SolanaRpcResponse<T> {
   result?: T;
@@ -48,6 +52,9 @@ export class SolanaOnChainSource
   readonly name =
     "Solana RPC On-Chain Source";
 
+  private readonly holderAggregationEngine =
+    new HolderAggregationEngine();
+
   private readonly holderAnalysisEngine =
     new HolderAnalysisEngine();
 
@@ -68,9 +75,25 @@ export class SolanaOnChainSource
         tokenAddress,
       );
 
-    const holders =
-      this.extractHolderBalances(
+    const accountBalances =
+      this.extractHolderAccounts(
         tokenAccounts,
+      );
+
+    const aggregatedHolders =
+      this.holderAggregationEngine.aggregate(
+        accountBalances,
+      );
+
+    const holders =
+      aggregatedHolders.map(
+        (holder) => ({
+          walletAddress:
+            holder.walletAddress,
+
+          tokenAmount:
+            holder.tokenAmount,
+        }),
       );
 
     const holderAnalysis =
@@ -80,6 +103,7 @@ export class SolanaOnChainSource
       );
 
     const risks: string[] = [];
+
     const unknowns: string[] = [
       ...holderAnalysis.unknowns,
     ];
@@ -194,10 +218,11 @@ export class SolanaOnChainSource
     return response?.value ?? [];
   }
 
-  private extractHolderBalances(
+  private extractHolderAccounts(
     accounts: TokenAccount[],
-  ): HolderBalance[] {
-    const holders: HolderBalance[] = [];
+  ): HolderAccountBalance[] {
+    const holders: HolderAccountBalance[] =
+      [];
 
     for (const account of accounts) {
       const info =
