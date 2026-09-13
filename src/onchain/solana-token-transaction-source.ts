@@ -4,6 +4,11 @@ import {
   NativeBalanceChange,
 } from "./token-transaction";
 
+import {
+  TransactionProgramAnalysis,
+  TransactionProgramAnalysisEngine,
+} from "./transaction-program-analysis";
+
 interface SolanaRpcResponse<T> {
   result?: T;
 
@@ -25,8 +30,26 @@ interface ParsedTokenBalance {
   };
 }
 
+interface ParsedInstruction {
+  programId?: string;
+
+  program?: string;
+
+  parsed?: {
+    type?: string;
+
+    info?: unknown;
+  };
+}
+
+interface InnerInstructionGroup {
+  instructions?: ParsedInstruction[];
+}
+
 interface ParsedTransactionMeta {
   err?: unknown;
+
+  fee?: number;
 
   preBalances?: number[];
 
@@ -35,6 +58,10 @@ interface ParsedTransactionMeta {
   preTokenBalances?: ParsedTokenBalance[];
 
   postTokenBalances?: ParsedTokenBalance[];
+
+  innerInstructions?:
+    | InnerInstructionGroup[]
+    | null;
 }
 
 interface ParsedTransactionMessage {
@@ -43,6 +70,8 @@ interface ParsedTransactionMessage {
       pubkey?: string;
     }
   >;
+
+  instructions?: ParsedInstruction[];
 }
 
 interface ParsedTransaction {
@@ -61,9 +90,8 @@ export class SolanaTokenTransactionSource {
   readonly name =
     "Solana RPC Token Transaction Source";
 
-  constructor(
-    private readonly rpcUrl: string,
-  ) {}
+  private readonly programAnalysisEngine =
+    new TransactionProgramAnalysisEngine();
 
   async getTransaction(
     signature: string,
@@ -77,7 +105,9 @@ export class SolanaTokenTransactionSource {
           signature,
           {
             encoding: "jsonParsed",
-            maxSupportedTransactionVersion: 0,
+
+            maxSupportedTransactionVersion:
+              0,
           },
         ],
       );
@@ -99,8 +129,8 @@ export class SolanaTokenTransactionSource {
         walletAddress,
       );
 
-    const programIds =
-      this.extractAccountKeys(
+    const programAnalysis =
+      this.analyzePrograms(
         transaction,
       );
 
@@ -123,7 +153,8 @@ export class SolanaTokenTransactionSource {
 
       nativeBalanceChanges,
 
-      programIds,
+      programIds:
+        programAnalysis.uniqueProgramIds,
 
       success:
         !transaction.meta?.err,
@@ -131,6 +162,22 @@ export class SolanaTokenTransactionSource {
       observedAt:
         new Date().toISOString(),
     };
+  }
+
+  private analyzePrograms(
+    transaction: ParsedTransaction,
+  ): TransactionProgramAnalysis {
+    return this.programAnalysisEngine.analyze(
+      {
+        instructions:
+          transaction.transaction
+            ?.message?.instructions,
+
+        innerInstructions:
+          transaction.meta
+            ?.innerInstructions,
+      },
+    );
   }
 
   private extractTokenBalanceChanges(
@@ -151,7 +198,9 @@ export class SolanaTokenTransactionSource {
         string,
         {
           ownerAddress: string;
+
           amountBefore: number;
+
           amountAfter: number;
         }
       >();
@@ -180,8 +229,12 @@ export class SolanaTokenTransactionSource {
         {
           ownerAddress:
             walletAddress,
-          amountBefore: amount,
-          amountAfter: 0,
+
+          amountBefore:
+            amount,
+
+          amountAfter:
+            0,
         },
       );
     }
@@ -217,8 +270,12 @@ export class SolanaTokenTransactionSource {
           {
             ownerAddress:
               walletAddress,
-            amountBefore: 0,
-            amountAfter: amount,
+
+            amountBefore:
+              0,
+
+            amountAfter:
+              amount,
           },
         );
       }
@@ -374,8 +431,11 @@ export class SolanaTokenTransactionSource {
 
           body: JSON.stringify({
             jsonrpc: "2.0",
+
             id: 1,
+
             method,
+
             params,
           }),
         },
