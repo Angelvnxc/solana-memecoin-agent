@@ -1,25 +1,40 @@
-import { OnChainDataSource } from "./onchain-source";
-import { OnChainAnalysis } from "./onchain-analysis";
+import {
+  OnChainDataSource,
+} from "./onchain-analysis";
+
+import {
+  OnChainAnalysis,
+} from "./onchain-analysis";
+
 import {
   HolderAnalysisEngine,
-  HolderBalance,
 } from "./holder-analysis";
+
 import {
   HolderAggregationEngine,
   HolderAccountBalance,
 } from "./holder-aggregation";
+
 import {
   WalletClassificationEngine,
 } from "./wallet-classification";
+
 import {
   WalletAnalysisEngine,
 } from "./wallet-analysis";
-import {
-  HolderDistributionAnalysisEngine,
-} from "./holder-distribution-analysis";
+
 import {
   WalletSignalEngine,
 } from "./wallet-signals";
+
+import {
+  HolderDistributionAnalysisEngine,
+} from "./holder-distribution-analysis";
+
+import {
+  AddressIdentity,
+} from "./address-identity";
+
 import {
   SolanaAddressIdentitySource,
 } from "./solana-address-identity-source";
@@ -36,11 +51,12 @@ interface SolanaRpcResponse<T> {
 interface TokenSupplyResult {
   value?: {
     amount?: string;
+    decimals?: number;
   };
 }
 
 interface TokenAccount {
-  pubkey: string;
+  pubkey?: string;
 
   account?: {
     data?: {
@@ -50,6 +66,8 @@ interface TokenAccount {
 
           tokenAmount?: {
             amount?: string;
+            decimals?: number;
+            uiAmount?: number | null;
           };
         };
       };
@@ -67,11 +85,11 @@ export class SolanaOnChainSource
   readonly name =
     "Solana RPC On-Chain Source";
 
-  private readonly holderAggregationEngine =
-    new HolderAggregationEngine();
-
   private readonly holderAnalysisEngine =
     new HolderAnalysisEngine();
+
+  private readonly holderAggregationEngine =
+    new HolderAggregationEngine();
 
   private readonly walletClassificationEngine =
     new WalletClassificationEngine();
@@ -79,13 +97,14 @@ export class SolanaOnChainSource
   private readonly walletAnalysisEngine =
     new WalletAnalysisEngine();
 
-  private readonly holderDistributionAnalysisEngine =
-    new HolderDistributionAnalysisEngine();
-
   private readonly walletSignalEngine =
     new WalletSignalEngine();
 
-  private readonly addressIdentitySource: SolanaAddressIdentitySource;
+  private readonly holderDistributionAnalysisEngine =
+    new HolderDistributionAnalysisEngine();
+
+  private readonly addressIdentitySource:
+    SolanaAddressIdentitySource;
 
   constructor(
     private readonly rpcUrl: string,
@@ -99,24 +118,27 @@ export class SolanaOnChainSource
   async analyzeToken(
     tokenAddress: string,
   ): Promise<OnChainAnalysis> {
+    const risks: string[] = [];
+    const unknowns: string[] = [];
+
     const supply =
       await this.getTokenSupply(
         tokenAddress,
       );
 
-    const tokenAccounts =
+    const accounts =
       await this.getTokenAccounts(
         tokenAddress,
       );
 
-    const accountBalances =
+    const holders =
       this.extractHolderAccounts(
-        tokenAccounts,
+        accounts,
       );
 
     const aggregatedHolders =
       this.holderAggregationEngine.aggregate(
-        accountBalances,
+        holders,
       );
 
     const walletAnalyses =
@@ -142,20 +164,17 @@ export class SolanaOnChainSource
         ),
       );
 
-    const holders: HolderBalance[] =
-      walletAnalyses.map(
-        (wallet) => ({
-          walletAddress:
-            wallet.walletAddress,
-
-          tokenAmount:
-            wallet.tokenAmount,
-        }),
-      );
-
     const holderAnalysis =
       this.holderAnalysisEngine.analyze(
-        holders,
+        aggregatedHolders.map(
+          (holder) => ({
+            walletAddress:
+              holder.walletAddress,
+
+            tokenAmount:
+              holder.tokenAmount,
+          }),
+        ),
         supply,
       );
 
@@ -165,45 +184,12 @@ export class SolanaOnChainSource
         supply,
       );
 
-    const risks: string[] = [
-      ...distribution.risks,
-    ];
-
-    const unknowns: string[] = [
-      ...holderAnalysis.unknowns,
-      ...distribution.unknowns,
-    ];
-
-    for (
-      const wallet of walletAnalyses
-    ) {
-      unknowns.push(
-        ...wallet.unknowns,
-      );
-    }
-
-    if (
-      supply === undefined
-    ) {
-      unknowns.push(
-        "Token supply could not be determined.",
-      );
-    }
-
-    if (
-      tokenAccounts.length === 0
-    ) {
-      unknowns.push(
-        "No token accounts were returned by the RPC source.",
-      );
-    }
-
     unknowns.push(
-      "Historical transaction activity is not implemented yet.",
+      "Historical transaction analysis is not implemented yet.",
     );
 
     unknowns.push(
-      "Buyer and seller classification is not implemented yet.",
+      "Buyer and seller flow analysis is not implemented yet.",
     );
 
     unknowns.push(
@@ -211,7 +197,7 @@ export class SolanaOnChainSource
     );
 
     unknowns.push(
-      "Liquidity provider identification is not implemented yet.",
+      "Liquidity provider analysis is not implemented yet.",
     );
 
     return {
@@ -219,33 +205,46 @@ export class SolanaOnChainSource
 
       holders: {
         total:
-          holderAnalysis.totalHolders,
+          aggregatedHolders.length,
 
         topHolderConcentration:
-          holderAnalysis.topHolderPercentage,
+          holderAnalysis.topHolderConcentration,
 
         top10Concentration:
-          holderAnalysis.top10Percentage,
+          holderAnalysis.top10Concentration,
       },
 
       distribution,
 
       developer: {},
 
-      wallets: {},
+      wallets: {
+        notableWallets:
+          walletAnalyses
+            .filter(
+              (wallet) =>
+                wallet.classification
+                  .entityType !==
+                "UNKNOWN",
+            )
+            .map(
+              (wallet) =>
+                wallet.walletAddress,
+            ),
+
+        accumulation:
+          undefined,
+
+        distribution:
+          undefined,
+
+        suspiciousActivity:
+          undefined,
+      },
 
       liquidity: {},
 
-      activity: {
-        uniqueWallets24h:
-          undefined,
-
-        transactionCount24h:
-          undefined,
-
-        buyerSellerBalance:
-          undefined,
-      },
+      activity: {},
 
       risks,
 
@@ -253,12 +252,61 @@ export class SolanaOnChainSource
     };
   }
 
+  private extractHolderAccounts(
+    accounts: TokenAccount[],
+  ): HolderAccountBalance[] {
+    const holders:
+      HolderAccountBalance[] = [];
+
+    for (const account of accounts) {
+      const info =
+        account.account?.data?.parsed?.info;
+
+      const owner =
+        info?.owner;
+
+      const amount =
+        info?.tokenAmount?.amount;
+
+      if (
+        !account.pubkey ||
+        !owner ||
+        !amount
+      ) {
+        continue;
+      }
+
+      const tokenAmount =
+        Number(amount);
+
+      if (
+        !Number.isFinite(tokenAmount) ||
+        tokenAmount <= 0
+      ) {
+        continue;
+      }
+
+      holders.push({
+        tokenAccountAddress:
+          account.pubkey,
+
+        walletAddress:
+          owner,
+
+        tokenAmount,
+      });
+    }
+
+    return holders;
+  }
+
   private async collectWalletSignals(
     walletAddress: string,
   ) {
     const signals = [];
 
-    const identity =
+    const identity:
+      AddressIdentity =
       await this.addressIdentitySource.getAddressIdentity(
         walletAddress,
       );
@@ -313,7 +361,7 @@ export class SolanaOnChainSource
 
   private async getTokenSupply(
     tokenAddress: string,
-  ): Promise<number | undefined> {
+  ): Promise<number> {
     const response =
       await this.rpcRequest<TokenSupplyResult>(
         "getTokenSupply",
@@ -324,15 +372,20 @@ export class SolanaOnChainSource
       response?.value?.amount;
 
     if (!amount) {
-      return undefined;
+      return 0;
     }
 
-    const parsed =
+    const tokenAmount =
       Number(amount);
 
-    return Number.isFinite(parsed)
-      ? parsed
-      : undefined;
+    if (
+      !Number.isFinite(tokenAmount) ||
+      tokenAmount < 0
+    ) {
+      return 0;
+    }
+
+    return tokenAmount;
   }
 
   private async getTokenAccounts(
@@ -340,55 +393,11 @@ export class SolanaOnChainSource
   ): Promise<TokenAccount[]> {
     const response =
       await this.rpcRequest<TokenAccountsResult>(
-        "getTokenAccountsByMint",
-        [
-          tokenAddress,
-          {
-            encoding: "jsonParsed",
-          },
-        ],
+        "getTokenLargestAccounts",
+        [tokenAddress],
       );
 
     return response?.value ?? [];
-  }
-
-  private extractHolderAccounts(
-    accounts: TokenAccount[],
-  ): HolderAccountBalance[] {
-    const holders: HolderAccountBalance[] =
-      [];
-
-    for (const account of accounts) {
-      const info =
-        account.account?.data?.parsed?.info;
-
-      const owner =
-        info?.owner;
-
-      const amount =
-        info?.tokenAmount?.amount;
-
-      if (!owner || !amount) {
-        continue;
-      }
-
-      const tokenAmount =
-        Number(amount);
-
-      if (
-        !Number.isFinite(tokenAmount) ||
-        tokenAmount <= 0
-      ) {
-        continue;
-      }
-
-      holders.push({
-        walletAddress: owner,
-        tokenAmount,
-      });
-    }
-
-    return holders;
   }
 
   private async rpcRequest<T>(
