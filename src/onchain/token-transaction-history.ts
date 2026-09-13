@@ -69,17 +69,19 @@ export class TokenTransactionHistoryEngine {
     tokenAddress: string,
     signatures: string[],
   ): Promise<TokenTransactionHistory> {
-    const transactions: TokenTransaction[] =
-      [];
+    const transactions:
+      TokenTransaction[] = [];
 
     const observations:
       TokenTransactionObservation[] =
       [];
 
     const risks: string[] = [];
+
     const unknowns: string[] = [];
-    const observationsSummary: string[] =
-      [];
+
+    const observationsSummary:
+      string[] = [];
 
     for (
       const signature of signatures
@@ -88,20 +90,23 @@ export class TokenTransactionHistoryEngine {
         continue;
       }
 
-      const transaction =
+      const parsedTransaction =
         await this.transactionSource.getTransaction(
           signature,
           walletAddress,
           tokenAddress,
         );
 
-      if (!transaction) {
+      if (!parsedTransaction) {
         unknowns.push(
           `Transaction ${signature} could not be retrieved from Solana RPC.`,
         );
 
         continue;
       }
+
+      const transaction =
+        parsedTransaction.transaction;
 
       transactions.push(
         transaction,
@@ -110,7 +115,7 @@ export class TokenTransactionHistoryEngine {
       const tokenChange =
         transaction.tokenBalanceChanges.reduce(
           (
-            total,
+            total: number,
             change,
           ) =>
             total +
@@ -121,7 +126,7 @@ export class TokenTransactionHistoryEngine {
       const nativeChange =
         transaction.nativeBalanceChanges.reduce(
           (
-            total,
+            total: number,
             change,
           ) =>
             total +
@@ -130,9 +135,9 @@ export class TokenTransactionHistoryEngine {
         );
 
       const hasSwapEvidence =
-        this.hasSwapEvidence(
-          transaction,
-        );
+        parsedTransaction
+          .instructionAnalysis
+          .hasSwapInstruction;
 
       const nativeSpent =
         nativeChange < 0;
@@ -206,7 +211,7 @@ export class TokenTransactionHistoryEngine {
         )
         .reduce(
           (
-            total,
+            total: number,
             observation,
           ) =>
             total +
@@ -227,7 +232,7 @@ export class TokenTransactionHistoryEngine {
         )
         .reduce(
           (
-            total,
+            total: number,
             observation,
           ) =>
             total +
@@ -250,7 +255,7 @@ export class TokenTransactionHistoryEngine {
         )
         .reduce(
           (
-            total,
+            total: number,
             change,
           ) =>
             total +
@@ -272,7 +277,7 @@ export class TokenTransactionHistoryEngine {
         )
         .reduce(
           (
-            total,
+            total: number,
             change,
           ) =>
             total +
@@ -379,7 +384,7 @@ export class TokenTransactionHistoryEngine {
     );
 
     unknowns.push(
-      "Program IDs identify accounts involved in the transaction but do not by themselves prove that a transaction was a swap.",
+      "A parsed swap instruction provides stronger evidence than balance movement alone, but transaction interpretation may still require analysis of the swap inputs and outputs.",
     );
 
     return {
@@ -422,15 +427,6 @@ export class TokenTransactionHistoryEngine {
       analyzedAt:
         new Date().toISOString(),
     };
-  }
-
-  private hasSwapEvidence(
-    transaction: TokenTransaction,
-  ): boolean {
-    return (
-      transaction.programIds.length >
-      1
-    );
   }
 
   private countDirection(
