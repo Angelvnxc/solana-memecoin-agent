@@ -1,289 +1,161 @@
-export interface TransactionProgramObservation {
-  programId: string;
+import {
+  SwapProgramMatch,
+  SwapProgramRegistry,
+} from "./swap-program-registry";
 
-  occurrenceCount: number;
+export interface TransactionProgramInput {
+  instructions?: Array<{
+    programId?: string;
+  }>;
 
-  topLevel: boolean;
-
-  inner: boolean;
-
-  evidence: string[];
+  innerInstructions?: Array<{
+    instructions?: Array<{
+      programId?: string;
+    }>;
+  }>;
 }
 
 export interface TransactionProgramAnalysis {
-  programs: TransactionProgramObservation[];
-
   uniqueProgramIds: string[];
 
   topLevelProgramIds: string[];
 
   innerProgramIds: string[];
 
-  unknowns: string[];
+  knownSwapPrograms: SwapProgramMatch[];
+
+  unknownProgramIds: string[];
+
+  hasKnownSwapProgram: boolean;
 
   analyzedAt: string;
 }
 
-interface ParsedInstruction {
-  programId?: string;
-
-  program?: string;
-
-  parsed?: {
-    type?: string;
-    info?: unknown;
-  };
-}
-
-interface InnerInstructionGroup {
-  instructions?: ParsedInstruction[];
-}
-
-interface TransactionProgramInput {
-  instructions?: ParsedInstruction[];
-
-  innerInstructions?: InnerInstructionGroup[] | null;
-}
-
 export class TransactionProgramAnalysisEngine {
+  private readonly swapProgramRegistry:
+    SwapProgramRegistry;
+
+  constructor(
+    swapProgramRegistry:
+      SwapProgramRegistry =
+      new SwapProgramRegistry(),
+  ) {
+    this.swapProgramRegistry =
+      swapProgramRegistry;
+  }
+
   analyze(
-    transaction: TransactionProgramInput,
+    input: TransactionProgramInput,
   ): TransactionProgramAnalysis {
-    const observations =
-      new Map<
-        string,
-        {
-          count: number;
-          topLevel: boolean;
-          inner: boolean;
-        }
-      >();
-
-    const unknowns: string[] = [];
-
-    const topLevelInstructions =
-      transaction.instructions ?? [];
-
-    const innerInstructionGroups =
-      transaction.innerInstructions ??
-      [];
-
-    for (
-      const instruction of
-      topLevelInstructions
-    ) {
-      const programId =
-        this.resolveProgramId(
-          instruction,
-        );
-
-      if (!programId) {
-        continue;
-      }
-
-      this.recordProgram(
-        observations,
-        programId,
-        true,
-        false,
+    const topLevelProgramIds =
+      this.extractTopLevelProgramIds(
+        input,
       );
-    }
 
-    for (
-      const group of
-      innerInstructionGroups
-    ) {
-      for (
-        const instruction of
-        group.instructions ?? []
-      ) {
-        const programId =
-          this.resolveProgramId(
-            instruction,
-          );
-
-        if (!programId) {
-          continue;
-        }
-
-        this.recordProgram(
-          observations,
-          programId,
-          false,
-          true,
-        );
-      }
-    }
-
-    if (
-      topLevelInstructions.length ===
-      0
-    ) {
-      unknowns.push(
-        "No top-level transaction instructions were available.",
+    const innerProgramIds =
+      this.extractInnerProgramIds(
+        input,
       );
-    }
 
-    if (
-      innerInstructionGroups.length ===
-      0
-    ) {
-      unknowns.push(
-        "No inner instruction groups were available.",
-      );
-    }
+    const uniqueProgramIds =
+      this.unique([
+        ...topLevelProgramIds,
+        ...innerProgramIds,
+      ]);
 
-    const programs =
-      [...observations.entries()]
+    const knownSwapPrograms =
+      uniqueProgramIds
         .map(
-          ([
-            programId,
-            observation,
-          ]) => ({
-            programId,
-
-            occurrenceCount:
-              observation.count,
-
-            topLevel:
-              observation.topLevel,
-
-            inner:
-              observation.inner,
-
-            evidence:
-              this.buildEvidence(
-                observation,
-              ),
-          }),
+          (programId) =>
+            this.swapProgramRegistry.identify(
+              programId,
+            ),
         )
-        .sort(
-          (a, b) =>
-            b.occurrenceCount -
-            a.occurrenceCount,
+        .filter(
+          (match) =>
+            match.matched &&
+            match.category !==
+              "UNKNOWN",
         );
+
+    const unknownProgramIds =
+      uniqueProgramIds.filter(
+        (programId) =>
+          !this.swapProgramRegistry.has(
+            programId,
+          ),
+      );
 
     return {
-      programs,
+      uniqueProgramIds,
 
-      uniqueProgramIds:
-        programs.map(
-          (program) =>
-            program.programId,
-        ),
+      topLevelProgramIds,
 
-      topLevelProgramIds:
-        programs
-          .filter(
-            (program) =>
-              program.topLevel,
-          )
-          .map(
-            (program) =>
-              program.programId,
-          ),
+      innerProgramIds,
 
-      innerProgramIds:
-        programs
-          .filter(
-            (program) =>
-              program.inner,
-          )
-          .map(
-            (program) =>
-              program.programId,
-          ),
+      knownSwapPrograms,
 
-      unknowns,
+      unknownProgramIds,
+
+      hasKnownSwapProgram:
+        knownSwapPrograms.length >
+        0,
 
       analyzedAt:
         new Date().toISOString(),
     };
   }
 
-  private resolveProgramId(
-    instruction: ParsedInstruction,
-  ): string | undefined {
-    if (
-      instruction.programId
-    ) {
-      return instruction.programId;
-    }
-
-    return undefined;
-  }
-
-  private recordProgram(
-    observations: Map<
-      string,
-      {
-        count: number;
-        topLevel: boolean;
-        inner: boolean;
-      }
-    >,
-    programId: string,
-    topLevel: boolean,
-    inner: boolean,
-  ): void {
-    const existing =
-      observations.get(
-        programId,
-      );
-
-    if (existing) {
-      existing.count += 1;
-
-      if (topLevel) {
-        existing.topLevel = true;
-      }
-
-      if (inner) {
-        existing.inner = true;
-      }
-
-      return;
-    }
-
-    observations.set(
-      programId,
-      {
-        count: 1,
-        topLevel,
-        inner,
-      },
-    );
-  }
-
-  private buildEvidence(
-    observation: {
-      count: number;
-      topLevel: boolean;
-      inner: boolean;
-    },
+  private extractTopLevelProgramIds(
+    input: TransactionProgramInput,
   ): string[] {
-    const evidence: string[] = [];
-
-    evidence.push(
-      `The program appeared ${observation.count} time(s) in the transaction.`,
-    );
-
-    if (
-      observation.topLevel
-    ) {
-      evidence.push(
-        "The program appeared in a top-level transaction instruction.",
+    return (
+      input.instructions ?? []
+    )
+      .map(
+        (instruction) =>
+          instruction.programId,
+      )
+      .filter(
+        (
+          programId,
+        ): programId is string =>
+          Boolean(programId),
       );
+  }
+
+  private extractInnerProgramIds(
+    input: TransactionProgramInput,
+  ): string[] {
+    const programIds: string[] =
+      [];
+
+    for (
+      const group of
+        input.innerInstructions ?? []
+    ) {
+      for (
+        const instruction of
+          group.instructions ?? []
+      ) {
+        if (
+          instruction.programId
+        ) {
+          programIds.push(
+            instruction.programId,
+          );
+        }
+      }
     }
 
-    if (
-      observation.inner
-    ) {
-      evidence.push(
-        "The program appeared in an inner instruction invoked through CPI.",
-      );
-    }
+    return programIds;
+  }
 
-    return evidence;
+  private unique(
+    values: string[],
+  ): string[] {
+    return [
+      ...new Set(values),
+    ];
   }
 }
