@@ -8,11 +8,13 @@ export interface TransactionProgramInput {
     programId?: string;
   }>;
 
-  innerInstructions?: Array<{
-    instructions?: Array<{
-      programId?: string;
-    }>;
-  }>;
+  innerInstructions?:
+    | Array<{
+        instructions?: Array<{
+          programId?: string;
+        }>;
+      }>
+    | null;
 }
 
 export interface TransactionProgramAnalysis {
