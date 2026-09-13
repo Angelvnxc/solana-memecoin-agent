@@ -15,10 +15,11 @@ export class HolderAggregationEngine {
   aggregate(
     accounts: HolderAccountBalance[],
   ): AggregatedHolderBalance[] {
-    const balances = new Map<
-      string,
-      AggregatedHolderBalance
-    >();
+    const balances =
+      new Map<
+        string,
+        AggregatedHolderBalance
+      >();
 
     for (const account of accounts) {
       if (
@@ -68,7 +69,9 @@ export class HolderAggregationEngine {
       );
     }
 
-    return [...balances.values()].sort(
+    return [
+      ...balances.values(),
+    ].sort(
       (a, b) =>
         b.tokenAmount -
         a.tokenAmount,
