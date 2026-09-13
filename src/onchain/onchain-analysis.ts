@@ -60,5 +60,6 @@ export interface OnChainAnalysis {
   };
 
   risks: string[];
+
   unknowns: string[];
 }
