@@ -94,9 +94,11 @@ interface ParsedTransaction {
 export interface ParsedTokenTransaction {
   transaction: TokenTransaction;
 
-  programAnalysis: TransactionProgramAnalysis;
+  programAnalysis:
+    TransactionProgramAnalysis;
 
-  instructionAnalysis: TransactionInstructionAnalysis;
+  instructionAnalysis:
+    TransactionInstructionAnalysis;
 }
 
 export class SolanaTokenTransactionSource {
@@ -120,7 +122,7 @@ export class SolanaTokenTransactionSource {
   ): Promise<
     ParsedTokenTransaction | undefined
   > {
-    const transaction =
+    const rpcTransaction =
       await this.rpcRequest<ParsedTransaction>(
         "getTransaction",
         [
@@ -134,43 +136,65 @@ export class SolanaTokenTransactionSource {
         ],
       );
 
-    if (!transaction) {
+    if (!rpcTransaction) {
       return undefined;
     }
 
     const tokenBalanceChanges =
       this.extractTokenBalanceChanges(
-        transaction,
+        rpcTransaction,
         walletAddress,
         tokenAddress,
       );
 
     const nativeBalanceChanges =
       this.extractNativeBalanceChanges(
-        transaction,
+        rpcTransaction,
         walletAddress,
       );
 
     const programAnalysis =
-      this.analyzePrograms(
-        transaction,
+      this.programAnalysisEngine.analyze(
+        {
+          instructions:
+            rpcTransaction
+              .transaction
+              ?.message
+              ?.instructions,
+
+          innerInstructions:
+            rpcTransaction
+              .meta
+              ?.innerInstructions,
+        },
       );
 
     const instructionAnalysis =
-      this.analyzeInstructions(
-        transaction,
+      this.instructionAnalysisEngine.analyze(
+        {
+          instructions:
+            rpcTransaction
+              .transaction
+              ?.message
+              ?.instructions,
+
+          innerInstructions:
+            rpcTransaction
+              .meta
+              ?.innerInstructions,
+        },
       );
 
-    const parsedTransaction:
+    const transaction:
       TokenTransaction = {
       signature,
 
       slot:
-        transaction.slot ?? 0,
+        rpcTransaction.slot ?? 0,
 
       blockTime:
         this.toIsoTimestamp(
-          transaction.blockTime,
+          rpcTransaction.blockTime,
         ),
 
       walletAddress,
@@ -185,52 +209,19 @@ export class SolanaTokenTransactionSource {
         programAnalysis.uniqueProgramIds,
 
       success:
-        !transaction.meta?.err,
+        !rpcTransaction.meta?.err,
 
       observedAt:
         new Date().toISOString(),
     };
 
     return {
-      transaction:
-        parsedTransaction,
+      transaction,
 
       programAnalysis,
 
       instructionAnalysis,
     };
-  }
-
-  private analyzePrograms(
-    transaction: ParsedTransaction,
-  ): TransactionProgramAnalysis {
-    return this.programAnalysisEngine.analyze(
-      {
-        instructions:
-          transaction.transaction
-            ?.message?.instructions,
-
-        innerInstructions:
-          transaction.meta
-            ?.innerInstructions,
-      },
-    );
-  }
-
-  private analyzeInstructions(
-    transaction: ParsedTransaction,
-  ): TransactionInstructionAnalysis {
-    return this.instructionAnalysisEngine.analyze(
-      {
-        instructions:
-          transaction.transaction
-            ?.message?.instructions,
-
-        innerInstructions:
-          transaction.meta
-            ?.innerInstructions,
-      },
-    );
   }
 
   private extractTokenBalanceChanges(
@@ -250,8 +241,6 @@ export class SolanaTokenTransactionSource {
       new Map<
         string,
         {
-          ownerAddress: string;
-
           amountBefore: number;
 
           amountAfter: number;
@@ -280,9 +269,6 @@ export class SolanaTokenTransactionSource {
       changes.set(
         key,
         {
-          ownerAddress:
-            walletAddress,
-
           amountBefore:
             amount,
 
@@ -321,9 +307,6 @@ export class SolanaTokenTransactionSource {
         changes.set(
           key,
           {
-            ownerAddress:
-              walletAddress,
-
             amountBefore:
               0,
 
@@ -339,7 +322,7 @@ export class SolanaTokenTransactionSource {
     ].map(
       (change) => ({
         ownerAddress:
-          change.ownerAddress,
+          walletAddress,
 
         tokenAddress,
 
@@ -373,21 +356,26 @@ export class SolanaTokenTransactionSource {
         transaction,
       );
 
-    const walletIndexes: number[] =
-      [];
-
-    accountKeys.forEach(
-      (address, index) => {
-        if (
-          address ===
-          walletAddress
-        ) {
-          walletIndexes.push(
+    const walletIndexes =
+      accountKeys
+        .map(
+          (
+            address,
             index,
-          );
-        }
-      },
-    );
+          ) => ({
+            address,
+            index,
+          }),
+        )
+        .filter(
+          (account) =>
+            account.address ===
+            walletAddress,
+        )
+        .map(
+          (account) =>
+            account.index,
+        );
 
     return walletIndexes
       .map((index) => {
@@ -422,8 +410,8 @@ export class SolanaTokenTransactionSource {
   ): string[] {
     const accountKeys =
       transaction.transaction
-        ?.message?.accountKeys ??
-      [];
+        ?.message
+        ?.accountKeys ?? [];
 
     return accountKeys
       .map((account) => {
