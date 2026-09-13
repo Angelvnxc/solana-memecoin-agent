@@ -13,12 +13,16 @@ export type WalletEntityType =
 export interface WalletClassification {
   walletAddress: string;
   entityType: WalletEntityType;
+
   confidence:
     | "LOW"
     | "MEDIUM"
     | "HIGH";
+
   evidence: WalletSignal[];
+
   unknowns: string[];
+
   classifiedAt: string;
 }
 
@@ -27,10 +31,24 @@ export class WalletClassificationEngine {
     walletAddress: string,
     signals: WalletSignal[],
   ): WalletClassification {
+    if (!walletAddress) {
+      return {
+        walletAddress,
+        entityType: "UNKNOWN",
+        confidence: "LOW",
+        evidence: [],
+        unknowns: [
+          "Wallet address is missing.",
+        ],
+        classifiedAt:
+          new Date().toISOString(),
+      };
+    }
+
     if (signals.length === 0) {
       return this.classifyUnknown(
         walletAddress,
-        "No classification signals are available.",
+        "No wallet classification signals are available.",
       );
     }
 
@@ -45,7 +63,9 @@ export class WalletClassificationEngine {
         "LIQUIDITY_ACCOUNT",
       ];
 
-    for (const entityType of priorityOrder) {
+    for (
+      const entityType of priorityOrder
+    ) {
       const matchingSignals =
         groupedSignals.get(
           entityType,
@@ -57,21 +77,26 @@ export class WalletClassificationEngine {
       ) {
         return {
           walletAddress,
+
           entityType,
+
           confidence:
             this.determineConfidence(
               matchingSignals,
             ),
+
           evidence:
             matchingSignals,
+
           unknowns: [],
+
           classifiedAt:
             new Date().toISOString(),
         };
       }
     }
 
-    return this.classifyUnknownWithEvidence(
+    return this.classifyPersonalOrUnknown(
       walletAddress,
       signals,
     );
@@ -83,16 +108,23 @@ export class WalletClassificationEngine {
   ): WalletClassification {
     return {
       walletAddress,
+
       entityType: "UNKNOWN",
+
       confidence: "LOW",
+
       evidence: [],
-      unknowns: [reason],
+
+      unknowns: [
+        reason,
+      ],
+
       classifiedAt:
         new Date().toISOString(),
     };
   }
 
-  private classifyUnknownWithEvidence(
+  private classifyPersonalOrUnknown(
     walletAddress: string,
     signals: WalletSignal[],
   ): WalletClassification {
@@ -114,7 +146,7 @@ export class WalletClassificationEngine {
 
     if (hasSystemOwnership) {
       unknowns.push(
-        "The address is owned by the Solana System Program, but this alone does not establish the economic identity of the controller.",
+        "The address is owned by the Solana System Program, which is consistent with a standard wallet account but does not independently prove who controls the wallet.",
       );
     }
 
@@ -122,24 +154,62 @@ export class WalletClassificationEngine {
       hasMultipleTokenAccounts
     ) {
       unknowns.push(
-        "The address is associated with token-account evidence, but this alone does not establish the economic identity of the controller.",
+        "Token-account evidence describes account infrastructure but does not independently establish the economic identity of the controller.",
       );
     }
 
+    /*
+     * A System Program-owned address without
+     * stronger contradictory evidence is treated
+     * as a probable personal wallet.
+     *
+     * This is intentionally not HIGH confidence.
+     */
+    if (
+      hasSystemOwnership &&
+      !hasMultipleTokenAccounts
+    ) {
+      return {
+        walletAddress,
+
+        entityType:
+          "PERSONAL_WALLET",
+
+        confidence: "MEDIUM",
+
+        evidence: signals,
+
+        unknowns,
+
+        classifiedAt:
+          new Date().toISOString(),
+      };
+    }
+
+    /*
+     * If the available evidence does not
+     * establish economic identity, remain
+     * UNKNOWN instead of guessing.
+     */
     if (
       unknowns.length === 0
     ) {
       unknowns.push(
-        "Available signals do not provide enough evidence for a specific wallet classification.",
+        "Available signals do not provide enough evidence to determine the economic identity of the address.",
       );
     }
 
     return {
       walletAddress,
+
       entityType: "UNKNOWN",
+
       confidence: "LOW",
+
       evidence: signals,
+
       unknowns,
+
       classifiedAt:
         new Date().toISOString(),
     };
@@ -157,20 +227,25 @@ export class WalletClassificationEngine {
         WalletSignal[]
       >();
 
-    for (const signal of signals) {
+    for (
+      const signal of signals
+    ) {
       const entityType =
         this.signalToEntityType(
           signal,
         );
 
       if (
-        entityType === "UNKNOWN"
+        entityType ===
+        "UNKNOWN"
       ) {
         continue;
       }
 
       const existing =
-        groups.get(entityType);
+        groups.get(
+          entityType,
+        );
 
       if (existing) {
         existing.push(signal);
@@ -226,7 +301,9 @@ export class WalletClassificationEngine {
           "MEDIUM",
       ).length;
 
-    if (highConfidence >= 2) {
+    if (
+      highConfidence >= 2
+    ) {
       return "HIGH";
     }
 
