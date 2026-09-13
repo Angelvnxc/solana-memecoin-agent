@@ -35,12 +35,16 @@ export interface SwapProgramMatch {
   matched: boolean;
 }
 
+const JUPITER_V6_PROGRAM_ID =
+  "JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4";
+
 export class SwapProgramRegistry {
   private readonly programs:
     Map<string, SwapProgramDefinition>;
 
   constructor(
-    definitions: SwapProgramDefinition[] = [],
+    definitions: SwapProgramDefinition[] =
+      SwapProgramRegistry.defaultDefinitions(),
   ) {
     this.programs =
       new Map<string, SwapProgramDefinition>();
@@ -152,6 +156,28 @@ export class SwapProgramRegistry {
   getAll(): SwapProgramDefinition[] {
     return [
       ...this.programs.values(),
+    ];
+  }
+
+  private static defaultDefinitions():
+    SwapProgramDefinition[] {
+    return [
+      {
+        programId:
+          JUPITER_V6_PROGRAM_ID,
+
+        name:
+          "Jupiter v6",
+
+        category:
+          "AGGREGATOR",
+
+        description:
+          "Jupiter v6 swap aggregator program on Solana.",
+
+        confidence:
+          "HIGH",
+      },
     ];
   }
 }
