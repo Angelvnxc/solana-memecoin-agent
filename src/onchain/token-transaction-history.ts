@@ -105,6 +105,13 @@ export class TokenTransactionHistoryEngine {
         continue;
       }
 
+      /*
+       * SolanaTokenTransactionSource now
+       * returns ParsedTokenTransaction.
+       *
+       * The actual TokenTransaction is stored
+       * inside the transaction property.
+       */
       const transaction =
         parsedTransaction.transaction;
 
@@ -203,11 +210,9 @@ export class TokenTransactionHistoryEngine {
       observations
         .filter(
           (observation) =>
-            observation
-              .tokenAmountChange !==
+            observation.tokenAmountChange !==
               undefined &&
-            observation
-              .tokenAmountChange > 0,
+            observation.tokenAmountChange > 0,
         )
         .reduce(
           (
@@ -224,11 +229,9 @@ export class TokenTransactionHistoryEngine {
       observations
         .filter(
           (observation) =>
-            observation
-              .tokenAmountChange !==
+            observation.tokenAmountChange !==
               undefined &&
-            observation
-              .tokenAmountChange < 0,
+            observation.tokenAmountChange < 0,
         )
         .reduce(
           (
