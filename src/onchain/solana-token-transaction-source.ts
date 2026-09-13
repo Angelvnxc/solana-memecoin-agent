@@ -9,6 +9,11 @@ import {
   TransactionProgramAnalysisEngine,
 } from "./transaction-program-analysis";
 
+import {
+  TransactionInstructionAnalysis,
+  TransactionInstructionAnalysisEngine,
+} from "./transaction-instruction-analysis";
+
 interface SolanaRpcResponse<T> {
   result?: T;
 
@@ -86,12 +91,23 @@ interface ParsedTransaction {
   meta?: ParsedTransactionMeta;
 }
 
+export interface ParsedTokenTransaction {
+  transaction: TokenTransaction;
+
+  programAnalysis: TransactionProgramAnalysis;
+
+  instructionAnalysis: TransactionInstructionAnalysis;
+}
+
 export class SolanaTokenTransactionSource {
   readonly name =
     "Solana RPC Token Transaction Source";
 
   private readonly programAnalysisEngine =
     new TransactionProgramAnalysisEngine();
+
+  private readonly instructionAnalysisEngine =
+    new TransactionInstructionAnalysisEngine();
 
   constructor(
     private readonly rpcUrl: string,
@@ -101,7 +117,9 @@ export class SolanaTokenTransactionSource {
     signature: string,
     walletAddress: string,
     tokenAddress: string,
-  ): Promise<TokenTransaction | undefined> {
+  ): Promise<
+    ParsedTokenTransaction | undefined
+  > {
     const transaction =
       await this.rpcRequest<ParsedTransaction>(
         "getTransaction",
@@ -138,7 +156,13 @@ export class SolanaTokenTransactionSource {
         transaction,
       );
 
-    return {
+    const instructionAnalysis =
+      this.analyzeInstructions(
+        transaction,
+      );
+
+    const parsedTransaction:
+      TokenTransaction = {
       signature,
 
       slot:
@@ -166,12 +190,37 @@ export class SolanaTokenTransactionSource {
       observedAt:
         new Date().toISOString(),
     };
+
+    return {
+      transaction:
+        parsedTransaction,
+
+      programAnalysis,
+
+      instructionAnalysis,
+    };
   }
 
   private analyzePrograms(
     transaction: ParsedTransaction,
   ): TransactionProgramAnalysis {
     return this.programAnalysisEngine.analyze(
+      {
+        instructions:
+          transaction.transaction
+            ?.message?.instructions,
+
+        innerInstructions:
+          transaction.meta
+            ?.innerInstructions,
+      },
+    );
+  }
+
+  private analyzeInstructions(
+    transaction: ParsedTransaction,
+  ): TransactionInstructionAnalysis {
+    return this.instructionAnalysisEngine.analyze(
       {
         instructions:
           transaction.transaction
