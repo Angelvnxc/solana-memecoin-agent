@@ -156,15 +156,7 @@ export class SolanaOnChainSource {
 
     const holderDistribution =
       this.holderAnalysisEngine.analyze(
-        aggregatedHolders.map(
-          (holder) => ({
-            walletAddress:
-              holder.walletAddress,
-
-            tokenAmount:
-              holder.tokenAmount,
-          }),
-        ),
+        holders,
         supply,
       );
 
