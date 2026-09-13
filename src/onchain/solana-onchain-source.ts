@@ -154,7 +154,7 @@ export class SolanaOnChainSource {
         ),
       );
 
-    const holderAnalysis =
+    const holderDistribution =
       this.holderAnalysisEngine.analyze(
         aggregatedHolders.map(
           (holder) => ({
@@ -196,12 +196,6 @@ export class SolanaOnChainSource {
       holders: {
         total:
           aggregatedHolders.length,
-
-        topHolderConcentration:
-          holderAnalysis.topHolderConcentration,
-
-        top10Concentration:
-          holderAnalysis.top10Concentration,
       },
 
       distribution,
@@ -221,15 +215,6 @@ export class SolanaOnChainSource {
               (wallet) =>
                 wallet.walletAddress,
             ),
-
-        accumulation:
-          undefined,
-
-        distribution:
-          undefined,
-
-        suspiciousActivity:
-          undefined,
       },
 
       liquidity: {},
