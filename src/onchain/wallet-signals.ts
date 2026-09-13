@@ -7,13 +7,25 @@ export type WalletSignalType =
   | "MULTIPLE_TOKEN_ACCOUNTS"
   | "UNKNOWN";
 
+export type WalletSignalConfidence =
+  | "LOW"
+  | "MEDIUM"
+  | "HIGH";
+
 export interface WalletSignal {
   walletAddress: string;
   type: WalletSignalType;
   statement: string;
-  confidence: "LOW" | "MEDIUM" | "HIGH";
+  confidence: WalletSignalConfidence;
   source: string;
   observedAt: string;
+}
+
+export interface WalletSignalEvidence {
+  type: WalletSignalType;
+  statement: string;
+  confidence: WalletSignalConfidence;
+  source: string;
 }
 
 export class WalletSignalEngine {
@@ -21,7 +33,7 @@ export class WalletSignalEngine {
     walletAddress: string,
     type: WalletSignalType,
     statement: string,
-    confidence: WalletSignal["confidence"],
+    confidence: WalletSignalConfidence,
     source: string,
   ): WalletSignal {
     return {
@@ -33,5 +45,35 @@ export class WalletSignalEngine {
       observedAt:
         new Date().toISOString(),
     };
+  }
+
+  createUnknownSignal(
+    walletAddress: string,
+    statement: string,
+    source: string,
+  ): WalletSignal {
+    return this.createSignal(
+      walletAddress,
+      "UNKNOWN",
+      statement,
+      "LOW",
+      source,
+    );
+  }
+
+  createSignals(
+    walletAddress: string,
+    evidence: WalletSignalEvidence[],
+  ): WalletSignal[] {
+    return evidence.map(
+      (item) =>
+        this.createSignal(
+          walletAddress,
+          item.type,
+          item.statement,
+          item.confidence,
+          item.source,
+        ),
+    );
   }
 }
