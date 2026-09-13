@@ -8,13 +8,19 @@ import {
 
 export interface WalletAnalysis {
   walletAddress: string;
+
   tokenAmount: number;
+
   tokenAccountCount: number;
+
+  tokenAccountAddresses: string[];
 
   classification: WalletClassification;
 
   analysisNotes: string[];
+
   risks: string[];
+
   unknowns: string[];
 
   analyzedAt: string;
@@ -37,6 +43,10 @@ export class WalletAnalysisEngine {
       `Wallet entity classification is ${classification.entityType}.`,
     );
 
+    analysisNotes.push(
+      `Wallet classification confidence is ${classification.confidence}.`,
+    );
+
     if (
       classification.entityType ===
       "UNKNOWN"
@@ -47,11 +57,27 @@ export class WalletAnalysisEngine {
     }
 
     if (
+      classification.unknowns.length > 0
+    ) {
+      unknowns.push(
+        ...classification.unknowns,
+      );
+    }
+
+    if (
       classification.confidence ===
       "LOW"
     ) {
       unknowns.push(
         "Wallet classification confidence is low.",
+      );
+    }
+
+    if (
+      holder.tokenAccountCount > 1
+    ) {
+      analysisNotes.push(
+        "The wallet controls multiple token accounts for this token.",
       );
     }
 
@@ -91,6 +117,42 @@ export class WalletAnalysisEngine {
       );
     }
 
+    if (
+      classification.entityType ===
+      "UNKNOWN"
+    ) {
+      risks.push(
+        "The economic identity of this address is uncertain.",
+      );
+    }
+
+    if (
+      classification.entityType ===
+      "EXCHANGE"
+    ) {
+      risks.push(
+        "Exchange-held balances may represent aggregated custody and may not correspond to one individual holder.",
+      );
+    }
+
+    if (
+      classification.entityType ===
+      "LIQUIDITY_ACCOUNT"
+    ) {
+      risks.push(
+        "Liquidity-related balances should not automatically be interpreted as directional holder conviction.",
+      );
+    }
+
+    if (
+      classification.entityType ===
+      "PROGRAM"
+    ) {
+      risks.push(
+        "Program-controlled balances require separate interpretation because they may not represent discretionary ownership.",
+      );
+    }
+
     return {
       walletAddress:
         holder.walletAddress,
@@ -101,10 +163,15 @@ export class WalletAnalysisEngine {
       tokenAccountCount:
         holder.tokenAccountCount,
 
+      tokenAccountAddresses:
+        holder.tokenAccountAddresses,
+
       classification,
 
       analysisNotes,
+
       risks,
+
       unknowns,
 
       analyzedAt:
