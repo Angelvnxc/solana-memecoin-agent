@@ -30,7 +30,7 @@ export interface HolderDistributionAnalysis {
 export class HolderDistributionAnalysisEngine {
   analyze(
     wallets: WalletAnalysis[],
-    totalSupply?: number,
+    totalSupply: number,
   ): HolderDistributionAnalysis {
     const observations: string[] = [];
     const risks: string[] = [];
@@ -38,10 +38,62 @@ export class HolderDistributionAnalysisEngine {
 
     const totalTokenAmount =
       wallets.reduce(
-        (total, wallet) =>
-          total + wallet.tokenAmount,
+        (sum, wallet) =>
+          sum + wallet.tokenAmount,
         0,
       );
+
+    const burnTokenAmount =
+      this.sumByEntity(
+        wallets,
+        "BURN_ADDRESS",
+      );
+
+    const exchangeTokenAmount =
+      this.sumByEntity(
+        wallets,
+        "EXCHANGE",
+      );
+
+    const liquidityTokenAmount =
+      this.sumByEntity(
+        wallets,
+        "LIQUIDITY_ACCOUNT",
+      );
+
+    const programTokenAmount =
+      this.sumByEntity(
+        wallets,
+        "PROGRAM",
+      );
+
+    const classifiedTokenAmount =
+      wallets
+        .filter(
+          (wallet) =>
+            wallet.classification
+              .entityType !==
+            "UNKNOWN",
+        )
+        .reduce(
+          (sum, wallet) =>
+            sum + wallet.tokenAmount,
+          0,
+        );
+
+    const unknownTokenAmount =
+      wallets
+        .filter(
+          (wallet) =>
+            wallet.classification
+              .entityType ===
+            "UNKNOWN",
+        )
+        .reduce(
+          (sum, wallet) =>
+            sum + wallet.tokenAmount,
+          0,
+        );
 
     const sortedWallets =
       [...wallets].sort(
@@ -52,136 +104,146 @@ export class HolderDistributionAnalysisEngine {
 
     const grossTop1Percentage =
       this.calculatePercentage(
-        sortedWallets.slice(0, 1),
+        this.sumTop(
+          sortedWallets,
+          1,
+        ),
         totalSupply,
       );
 
     const grossTop5Percentage =
       this.calculatePercentage(
-        sortedWallets.slice(0, 5),
+        this.sumTop(
+          sortedWallets,
+          5,
+        ),
         totalSupply,
       );
 
     const grossTop10Percentage =
       this.calculatePercentage(
-        sortedWallets.slice(0, 10),
+        this.sumTop(
+          sortedWallets,
+          10,
+        ),
         totalSupply,
       );
 
-    let classifiedTokenAmount = 0;
-    let unknownTokenAmount = 0;
-
-    let burnTokenAmount = 0;
-    let exchangeTokenAmount = 0;
-    let liquidityTokenAmount = 0;
-    let programTokenAmount = 0;
-
-    for (const wallet of wallets) {
-      switch (
-        wallet.classification.entityType
-      ) {
-        case "BURN_ADDRESS":
-          burnTokenAmount +=
-            wallet.tokenAmount;
-
-          classifiedTokenAmount +=
-            wallet.tokenAmount;
-
-          break;
-
-        case "EXCHANGE":
-          exchangeTokenAmount +=
-            wallet.tokenAmount;
-
-          classifiedTokenAmount +=
-            wallet.tokenAmount;
-
-          break;
-
-        case "LIQUIDITY_ACCOUNT":
-          liquidityTokenAmount +=
-            wallet.tokenAmount;
-
-          classifiedTokenAmount +=
-            wallet.tokenAmount;
-
-          break;
-
-        case "PROGRAM":
-          programTokenAmount +=
-            wallet.tokenAmount;
-
-          classifiedTokenAmount +=
-            wallet.tokenAmount;
-
-          break;
-
-        default:
-          unknownTokenAmount +=
-            wallet.tokenAmount;
-
-          break;
-      }
-    }
-
-    if (
-      totalSupply === undefined ||
-      totalSupply <= 0
-    ) {
-      unknowns.push(
-        "Total supply is unavailable, so distribution percentages cannot be normalized against total supply.",
-      );
-    }
-
-    if (
-      unknownTokenAmount > 0
-    ) {
-      unknowns.push(
-        "Some wallet balances could not be assigned to a known entity type.",
-      );
-    }
-
     const economicallyUnclassifiedPercentage =
-      this.calculateAmountPercentage(
+      this.calculatePercentage(
         unknownTokenAmount,
         totalSupply,
       );
 
     observations.push(
-      `${wallets.length} aggregated wallet(s) were analyzed.`,
-    );
-
-    observations.push(
-      `${classifiedTokenAmount} token units are associated with classified entity types.`,
-    );
-
-    observations.push(
-      `${unknownTokenAmount} token units remain associated with unknown entities.`,
+      `Analyzed ${wallets.length} wallet(s) containing ${totalTokenAmount} token units.`,
     );
 
     if (
-      grossTop10Percentage !== undefined
+      grossTop1Percentage !==
+      undefined
     ) {
       observations.push(
-        `The largest ten wallets represent ${grossTop10Percentage.toFixed(2)}% of reported total supply.`,
+        `The largest analyzed wallet represents approximately ${grossTop1Percentage.toFixed(2)}% of total token supply.`,
+      );
+    }
+
+    if (
+      grossTop10Percentage !==
+      undefined
+    ) {
+      observations.push(
+        `The largest 10 analyzed wallets represent approximately ${grossTop10Percentage.toFixed(2)}% of total token supply.`,
+      );
+    }
+
+    if (
+      burnTokenAmount > 0
+    ) {
+      observations.push(
+        `${burnTokenAmount} token units are associated with addresses classified as burn addresses.`,
+      );
+    }
+
+    if (
+      exchangeTokenAmount > 0
+    ) {
+      observations.push(
+        `${exchangeTokenAmount} token units are associated with addresses classified as exchanges.`,
+      );
+    }
+
+    if (
+      liquidityTokenAmount > 0
+    ) {
+      observations.push(
+        `${liquidityTokenAmount} token units are associated with liquidity-related addresses.`,
+      );
+    }
+
+    if (
+      programTokenAmount > 0
+    ) {
+      observations.push(
+        `${programTokenAmount} token units are associated with program-controlled addresses.`,
+      );
+    }
+
+    if (
+      grossTop10Percentage !==
+        undefined &&
+      grossTop10Percentage >= 50
+    ) {
+      risks.push(
+        "The largest analyzed wallets control a substantial portion of the reported token supply.",
+      );
+    }
+
+    if (
+      grossTop1Percentage !==
+        undefined &&
+      grossTop1Percentage >= 20
+    ) {
+      risks.push(
+        "The largest wallet has significant concentration relative to total token supply.",
       );
     }
 
     if (
       economicallyUnclassifiedPercentage !==
-        undefined
+        undefined &&
+      economicallyUnclassifiedPercentage >=
+        20
     ) {
-      observations.push(
-        `${economicallyUnclassifiedPercentage.toFixed(2)}% of reported total supply remains economically unclassified.`,
+      risks.push(
+        "A significant portion of the analyzed token balance belongs to addresses whose economic identity remains uncertain.",
       );
     }
 
     if (
-      unknownTokenAmount > 0 &&
-      totalSupply !== undefined
+      economicallyUnclassifiedPercentage !==
+        undefined &&
+      economicallyUnclassifiedPercentage > 0
     ) {
-      risks.push(
-        "Wallet concentration includes balances whose economic identity has not yet been established.",
+      unknowns.push(
+        `${economicallyUnclassifiedPercentage.toFixed(2)}% of total token supply is associated with wallets that could not be economically classified.`,
+      );
+    }
+
+    if (
+      totalTokenAmount <
+      totalSupply
+    ) {
+      unknowns.push(
+        "The available holder dataset does not account for the entire token supply, so concentration and classification percentages should not be treated as a complete representation of all token holders.",
+      );
+    }
+
+    if (
+      wallets.length === 0
+    ) {
+      unknowns.push(
+        "No wallet analysis records are available.",
       );
     }
 
@@ -192,21 +254,29 @@ export class HolderDistributionAnalysisEngine {
       totalTokenAmount,
 
       grossTop1Percentage,
+
       grossTop5Percentage,
+
       grossTop10Percentage,
 
       classifiedTokenAmount,
+
       unknownTokenAmount,
 
       burnTokenAmount,
+
       exchangeTokenAmount,
+
       liquidityTokenAmount,
+
       programTokenAmount,
 
       economicallyUnclassifiedPercentage,
 
       observations,
+
       risks,
+
       unknowns,
 
       analyzedAt:
@@ -214,36 +284,45 @@ export class HolderDistributionAnalysisEngine {
     };
   }
 
-  private calculatePercentage(
+  private sumByEntity(
     wallets: WalletAnalysis[],
-    totalSupply?: number,
-  ): number | undefined {
-    if (
-      totalSupply === undefined ||
-      totalSupply <= 0
-    ) {
-      return undefined;
-    }
-
-    const amount =
-      wallets.reduce(
-        (total, wallet) =>
-          total + wallet.tokenAmount,
+    entityType:
+      WalletAnalysis["classification"]["entityType"],
+  ): number {
+    return wallets
+      .filter(
+        (wallet) =>
+          wallet.classification
+            .entityType ===
+          entityType,
+      )
+      .reduce(
+        (sum, wallet) =>
+          sum + wallet.tokenAmount,
         0,
       );
-
-    return (
-      (amount / totalSupply) *
-      100
-    );
   }
 
-  private calculateAmountPercentage(
+  private sumTop(
+    wallets: WalletAnalysis[],
+    count: number,
+  ): number {
+    return wallets
+      .slice(0, count)
+      .reduce(
+        (sum, wallet) =>
+          sum + wallet.tokenAmount,
+        0,
+      );
+  }
+
+  private calculatePercentage(
     amount: number,
-    totalSupply?: number,
+    totalSupply: number,
   ): number | undefined {
     if (
-      totalSupply === undefined ||
+      !Number.isFinite(amount) ||
+      !Number.isFinite(totalSupply) ||
       totalSupply <= 0
     ) {
       return undefined;
