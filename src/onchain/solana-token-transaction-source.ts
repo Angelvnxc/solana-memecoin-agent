@@ -14,11 +14,16 @@ import {
   TransactionInstructionAnalysisEngine,
 } from "./transaction-instruction-analysis";
 
+import {
+  SwapProgramMatch,
+} from "./swap-program-registry";
+
 interface SolanaRpcResponse<T> {
   result?: T;
 
   error?: {
     code: number;
+
     message: string;
   };
 }
@@ -99,6 +104,9 @@ export interface ParsedTokenTransaction {
 
   instructionAnalysis:
     TransactionInstructionAnalysis;
+
+  knownSwapPrograms:
+    SwapProgramMatch[];
 }
 
 export class SolanaTokenTransactionSource {
@@ -221,6 +229,9 @@ export class SolanaTokenTransactionSource {
       programAnalysis,
 
       instructionAnalysis,
+
+      knownSwapPrograms:
+        programAnalysis.knownSwapPrograms,
     };
   }
 
@@ -364,6 +375,7 @@ export class SolanaTokenTransactionSource {
             index,
           ) => ({
             address,
+
             index,
           }),
         )
