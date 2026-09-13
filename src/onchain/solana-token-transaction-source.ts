@@ -93,6 +93,10 @@ export class SolanaTokenTransactionSource {
   private readonly programAnalysisEngine =
     new TransactionProgramAnalysisEngine();
 
+  constructor(
+    private readonly rpcUrl: string,
+  ) {}
+
   async getTransaction(
     signature: string,
     walletAddress: string,
